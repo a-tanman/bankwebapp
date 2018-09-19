@@ -16,6 +16,7 @@ https://opensource.org/licenses/ECL-2.0
 package sg.edu.sutd.bank.webapp.servlet;
 
 import static sg.edu.sutd.bank.webapp.servlet.ServletPaths.CLIENT_DASHBOARD_PAGE;
+import static sg.edu.sutd.bank.webapp.servlet.ServletPaths.LOGIN;
 
 import java.io.IOException;
 
@@ -36,12 +37,18 @@ public class ClientDashboardServlet extends DefaultServlet {
 	
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-		try {
-			ClientInfo clientInfo = clientInforDao.loadAccountInfo(req.getRemoteUser());
-			req.getSession().setAttribute("clientInfo", clientInfo);
-		} catch (ServiceException e) {
-			sendError(req, e.getMessage());
+		
+		// Check if user is logged in as client
+		if (!req.isUserInRole("client")) {
+			redirect(resp, LOGIN);
+		} else {
+			try {
+				ClientInfo clientInfo = clientInforDao.loadAccountInfo(req.getRemoteUser());
+				req.getSession().setAttribute("clientInfo", clientInfo);
+			} catch (ServiceException e) {
+				sendError(req, e.getMessage());
+			}
+			forward(req, resp);
 		}
-		forward(req, resp);
 	}
 }

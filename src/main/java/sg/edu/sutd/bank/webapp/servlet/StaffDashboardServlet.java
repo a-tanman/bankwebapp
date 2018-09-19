@@ -15,8 +15,10 @@ https://opensource.org/licenses/ECL-2.0
 
 package sg.edu.sutd.bank.webapp.servlet;
 import static sg.edu.sutd.bank.webapp.servlet.ServletPaths.STAFF_DASHBOARD_PAGE;
+import static sg.edu.sutd.bank.webapp.servlet.ServletPaths.LOGIN;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,29 +64,39 @@ public class StaffDashboardServlet extends DefaultServlet {
 
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-		try {
-			List<ClientInfo> accountList = clientInfoDAO.loadWaitingList();
-			req.getSession().setAttribute("registrationList", accountList);
-			List<ClientTransaction> transList = clientTransactionDAO.loadWaitingList();
-			req.getSession().setAttribute("transList", transList);
-		} catch (ServiceException e) {
-			sendError(req, e.getMessage());
-		}
-		forward(req, resp);
+		if(!req.isUserInRole("staff")){
+			redirect(resp, LOGIN);
+		} else {
+			try {
+			
+				List<ClientInfo> accountList = clientInfoDAO.loadWaitingList();
+				req.getSession().setAttribute("registrationList", accountList);
+				List<ClientTransaction> transList = clientTransactionDAO.loadWaitingList();
+				req.getSession().setAttribute("transList", transList);
+			} catch (ServiceException e) {
+				sendError(req, e.getMessage());
+			}
+			forward(req, resp);
+	}
 	}
 	
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-		String actionType = req.getParameter("actionType");
-		if (REGISTRATION_DECISION_ACTION.endsWith(actionType)) {
-			try {
-				onRegistrationDecisionAction(req, resp);
-			} catch (ServiceException e) {
-				sendError(req, e.getMessage());
-				redirect(resp, STAFF_DASHBOARD_PAGE);
+		
+		if(!req.isUserInRole("staff")) {
+			redirect(resp, LOGIN);
+		} else {
+			String actionType = req.getParameter("actionType");
+			if (REGISTRATION_DECISION_ACTION.endsWith(actionType)) {
+				try {
+					onRegistrationDecisionAction(req, resp);
+				} catch (ServiceException e) {
+					sendError(req, e.getMessage());
+					redirect(resp, STAFF_DASHBOARD_PAGE);
+				}
+			} else if (TRANSACTION_DECSION_ACTION.equals(actionType)) {
+				onTransactionDecisionAction(req, resp);
 			}
-		} else if (TRANSACTION_DECSION_ACTION.equals(actionType)) {
-			onTransactionDecisionAction(req, resp);
 		}
 	}
 
@@ -122,6 +134,14 @@ public class StaffDashboardServlet extends DefaultServlet {
 		}
 		return result;
 	}
+	
+	BigDecimal[] toBigDecimalArray(String[] idStrs) {
+		BigDecimal[] result = new BigDecimal[idStrs.length];
+		for (int i = 0; i < idStrs.length; i++) {
+			result[i] = BigDecimal.valueOf(Long.parseLong(idStrs[i]));
+		}
+		return result;
+	}
 
 	private void activateAccount(String[] userEmails, int[] userIds, String[] decisions) throws ServiceException {
 		for (int i = 0; i < userIds.length; i++) {
@@ -146,20 +166,43 @@ public class StaffDashboardServlet extends DefaultServlet {
 			throws ServletException, IOException {
 		String[] decisions = req.getParameterValues("decision");
 		int[] transIds = toIntegerArray(req.getParameterValues("trans_id"));
+		int[] userIds = toIntegerArray(req.getParameterValues("user_id"));
+		BigDecimal[] transAmts = toBigDecimalArray(req.getParameterValues("trans_amt"));
 		List<ClientTransaction> transactions = new ArrayList<ClientTransaction>();
 		for (int i = 0; i < transIds.length; i++) {
 			int transId = transIds[i];
+			BigDecimal transAmt = transAmts[i];
 			Decision decision = Decision.valueOf(decisions[i]);
 			if (decision.getStatus() != null) {
+				User user = new User(userIds[i]);
 				ClientTransaction trans = new ClientTransaction();
 				trans.setId(transId);
 				trans.setStatus(decision.getTransStatus());
-				transactions.add(trans );
+				trans.setAmount(transAmt);
+				trans.setUser(user);
+				transactions.add(trans);
 			}
 		}
 		if (!transactions.isEmpty()) {
 			try {
-				clientTransactionDAO.updateDecision(transactions);
+				
+				
+				for (ClientTransaction ct : transactions) {
+					
+					ClientAccount account = new ClientAccount();
+					account.setUser(ct.getUser());
+					account.setId(ct.getId());
+					ClientInfo ci = clientInfoDAO.loadAccountInfo(ct.getUser().getUserName()); 
+					
+					BigDecimal balAmt = ci.getAccount().getAmount();
+					BigDecimal newBal = balAmt.subtract(ct.getAmount());
+								
+					account.setAmount(newBal);			
+					clientAccountDAO.update(account);
+					clientTransactionDAO.updateDecision(ct);
+				}
+						
+				
 			} catch (ServiceException e) {
 				sendError(req, e.getMessage());
 			}

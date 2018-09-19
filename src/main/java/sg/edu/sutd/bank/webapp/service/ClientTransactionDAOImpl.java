@@ -23,14 +23,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import sg.edu.sutd.bank.webapp.commons.ServiceException;
+import sg.edu.sutd.bank.webapp.model.ClientAccount;
+import sg.edu.sutd.bank.webapp.model.ClientInfo;
 import sg.edu.sutd.bank.webapp.model.ClientTransaction;
 import sg.edu.sutd.bank.webapp.model.TransactionStatus;
 import sg.edu.sutd.bank.webapp.model.User;
 
 public class ClientTransactionDAOImpl extends AbstractDAOImpl implements ClientTransactionDAO {
 
+	private ClientAccountDAO clientAccountDAO = new ClientAccountDAOImpl();
+
 	@Override
-	public void create(ClientTransaction clientTransaction) throws ServiceException {
+	public synchronized void create(ClientTransaction clientTransaction) throws ServiceException {
 		Connection conn = connectDB();
 		PreparedStatement ps;
 		try {
@@ -48,7 +52,7 @@ public class ClientTransactionDAOImpl extends AbstractDAOImpl implements ClientT
 	}
 
 	@Override
-	public List<ClientTransaction> load(User user) throws ServiceException {
+	public synchronized List<ClientTransaction> load(User user) throws ServiceException {
 		Connection conn = connectDB();
 		PreparedStatement ps = null;
 		ResultSet rs = null;
@@ -79,7 +83,7 @@ public class ClientTransactionDAOImpl extends AbstractDAOImpl implements ClientT
 	}
 
 	@Override
-	public List<ClientTransaction> loadWaitingList() throws ServiceException {
+	public synchronized  List<ClientTransaction> loadWaitingList() throws ServiceException {
 		Connection conn = connectDB();
 		PreparedStatement ps = null;
 		ResultSet rs = null;
@@ -108,20 +112,34 @@ public class ClientTransactionDAOImpl extends AbstractDAOImpl implements ClientT
 	}
 
 	@Override
-	public void updateDecision(List<ClientTransaction> transactions) throws ServiceException {
+	public synchronized void updateDecision(ClientTransaction trans) throws ServiceException {
 		StringBuilder query = new StringBuilder("UPDATE client_transaction SET status = Case id ");
-		for (ClientTransaction trans : transactions) {
+		//for (ClientTransaction trans : transactions) {
 			query.append(String.format("WHEN %d THEN '%s' ", trans.getId(), trans.getStatus().name()));
-		}
+			
+//			if (trans.getStatus().name() == "APPROVED") {
+//				ClientAccount account = new ClientAccount();
+//				account.setUser(trans.getUser());
+//				account.setId(trans.getId());
+//				account.setAmount(trans.getAmount());
+//				
+//				System.out.println(trans.getUser());
+//				System.out.println(trans.getId());
+//				System.out.println(trans.getAmount());
+//				
+//				clientAccountDAO.update(account);						
+//			}
+			
+		//}
 		query.append("ELSE status ")
 			.append("END ")
 			.append("WHERE id IN(");
-		for (int i = 0; i < transactions.size(); i++) {
-			query.append(transactions.get(i).getId());
-			if (i < transactions.size() - 1) {
-				query.append(", ");
-			}
-		}
+		//for (int i = 0; i < transactions.size(); i++) {
+			query.append(trans.getId());
+			//if (i < transactions.size() - 1) {
+			//	query.append(", ");
+			//}
+		//}
 		query.append(");");
 		Connection conn = connectDB();
 		PreparedStatement ps = null;
@@ -137,6 +155,9 @@ public class ClientTransactionDAOImpl extends AbstractDAOImpl implements ClientT
 		} finally {
 			closeDb(conn, ps, rs);
 		}
+		
+		
+		
 	}
 
 }

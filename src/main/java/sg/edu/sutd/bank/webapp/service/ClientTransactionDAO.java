@@ -30,5 +30,5 @@ public interface ClientTransactionDAO {
 	
 	List<ClientTransaction> loadWaitingList() throws ServiceException;
 
-	void updateDecision(List<ClientTransaction> transactions) throws ServiceException;
+	void updateDecision(ClientTransaction ct) throws ServiceException;
 }

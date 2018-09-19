@@ -17,6 +17,7 @@ package sg.edu.sutd.bank.webapp.service;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -25,7 +26,7 @@ import sg.edu.sutd.bank.webapp.commons.ServiceException;
 public class TransactionCodesDAOImp extends AbstractDAOImpl implements TransactionCodesDAO {
 
 	@Override
-	public void create(List<String> codes, int userId) throws ServiceException {
+	public synchronized void create(List<String> codes, int userId) throws ServiceException {
 		Connection conn = connectDB();
 		PreparedStatement ps;
 		try {
@@ -49,6 +50,47 @@ public class TransactionCodesDAOImp extends AbstractDAOImpl implements Transacti
 			if (rowNum == 0) {
 				throw new SQLException("Update failed, no rows affected!");
 			}
+		} catch (SQLException e) {
+			throw ServiceException.wrap(e);
+		}
+	}
+	
+	@Override
+	public synchronized boolean checkTransCode(String code, int userId) throws ServiceException {
+		
+		Connection conn = connectDB();
+		PreparedStatement ps;
+		ResultSet rs = null;
+		try {
+			ps = conn.prepareStatement("SELECT * FROM transaction_code WHERE code = ? AND user_id = ? AND used = 0");
+			int idx = 1;
+			ps.setString(idx++, code);
+			ps.setInt(idx++, userId);
+			rs = ps.executeQuery();
+			if (rs.next() == false) {
+				throw new SQLException("Your transaction code is invalid!");
+							}
+		} catch (SQLException e) {
+			throw ServiceException.wrap(e);
+		}
+		
+		
+		return true;
+		
+	}
+	
+	// Update transaction code to 'used' after transcaction is approved
+	public synchronized void updateTransCodeStatus(String code, int userId, Boolean status) throws ServiceException {
+		Connection conn = connectDB();
+		PreparedStatement ps;
+		ResultSet rs = null;
+		try {
+			ps = conn.prepareStatement("UPDATE transaction_code SET used = ? WHERE user_id = ? and code = ?");
+			int idx = 1;
+			ps.setBoolean(idx++,  status);
+			ps.setInt(idx++,  userId);
+			ps.setString(idx++, code);
+			rs = ps.executeQuery();
 		} catch (SQLException e) {
 			throw ServiceException.wrap(e);
 		}
