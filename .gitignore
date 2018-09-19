@@ -6,5 +6,5 @@
 target/
 
 
-src/main/resources/email.properties
-src/main/resources/database.properties
+./src/main/resources/email.properties
+./src/main/resources/database.properties
